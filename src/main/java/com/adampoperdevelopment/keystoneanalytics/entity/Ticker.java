@@ -17,7 +17,7 @@ public class Ticker {
     @Column(name = "ticker_symbol", nullable = false, length = 45)
     private String tickerSymbol;
 
-    @Column(name = "is_active")
+    @Column(name = "is_active", columnDefinition = "TINYINT(1)")
     private Boolean isActive;
 
     @Column(name = "created_at")
