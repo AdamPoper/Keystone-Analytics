@@ -22,6 +22,9 @@ public class Company {
     @Column(name = "created_at")
     private Long createdAt;
 
+    @Column(name = "is_active", columnDefinition = "TINYINT(1)")
+    private Boolean isActive;
+
     @OneToMany(mappedBy = "company")
     private List<Ticker> tickers = new ArrayList<>();
 
@@ -55,6 +58,14 @@ public class Company {
 
     public void setCreatedAt(Long createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
     }
 
     public List<Ticker> getTickers() {

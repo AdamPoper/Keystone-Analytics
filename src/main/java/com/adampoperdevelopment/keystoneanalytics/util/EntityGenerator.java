@@ -1,5 +1,6 @@
 package com.adampoperdevelopment.keystoneanalytics.util;
 
+import java.io.FileInputStream;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
@@ -11,8 +12,8 @@ import java.util.*;
 public class EntityGenerator {
 
     private static final String JDBC_URL = "jdbc:mysql://localhost:3306/equity-fundamentals";
-    private static final String USER = System.getenv("DB_USERNAME");
-    private static final String PASSWORD = System.getenv("DB_PASSWORD");
+    private static final String USER = resolveCredential("DB_USERNAME", "spring.datasource.username");
+    private static final String PASSWORD = resolveCredential("DB_PASSWORD", "spring.datasource.password");
     private static final String CATALOG = "equity-fundamentals";
     private static final String PACKAGE = "com.adampoperdevelopment.keystoneanalytics.entity";
     private static final String OUTPUT_DIR =
@@ -30,6 +31,21 @@ public class EntityGenerator {
             this.pkTable = pkTable;
             this.nullable = nullable;
         }
+    }
+
+    // Tries the environment variable first, then falls back to application-local.properties.
+    private static String resolveCredential(String envVar, String propertyKey) {
+        String value = System.getenv(envVar);
+        if (value != null && !value.isBlank()) return value;
+        try {
+            Properties props = new Properties();
+            props.load(new FileInputStream("src/main/resources/application-local.properties"));
+            value = props.getProperty(propertyKey);
+            if (value != null && !value.isBlank()) return value;
+        } catch (Exception ignored) {}
+        throw new IllegalStateException(
+                "Could not resolve credential '" + envVar + "'. " +
+                "Set the environment variable or add '" + propertyKey + "' to application-local.properties.");
     }
 
     public static void main(String[] args) throws Exception {
@@ -250,6 +266,7 @@ public class EntityGenerator {
         if (!nullable && !isPk) attrs.add("nullable = false");
         if ((sqlType.contains("VARCHAR") || sqlType.contains("CHAR")) && size > 0) attrs.add("length = " + size);
         if (sqlType.contains("DECIMAL") || sqlType.contains("NUMERIC")) attrs.add("precision = " + size);
+        if (sqlType.startsWith("TINYINT")) attrs.add("columnDefinition = \"TINYINT(1)\"");
         if (isFkCol) { attrs.add("insertable = false"); attrs.add("updatable = false"); }
         return "    @Column(" + String.join(", ", attrs) + ")\n";
     }
