@@ -11,8 +11,8 @@ import java.util.*;
 public class EntityGenerator {
 
     private static final String JDBC_URL = "jdbc:mysql://localhost:3306/equity-fundamentals";
-    private static final String USER = "apoper";
-    private static final String PASSWORD = "MarathonNot@Sprint2025!";
+    private static final String USER = System.getenv("DB_USERNAME");
+    private static final String PASSWORD = System.getenv("DB_PASSWORD");
     private static final String CATALOG = "equity-fundamentals";
     private static final String PACKAGE = "com.adampoperdevelopment.keystoneanalytics.entity";
     private static final String OUTPUT_DIR =
