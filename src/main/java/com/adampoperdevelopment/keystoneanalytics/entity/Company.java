@@ -26,6 +26,9 @@ public class Company {
     private Boolean isActive;
 
     @OneToMany(mappedBy = "company")
+    private List<FinancialStatementRowEntry> financialStatementRowEntries = new ArrayList<>();
+
+    @OneToMany(mappedBy = "company")
     private List<Ticker> tickers = new ArrayList<>();
 
     public Integer getId() {
@@ -66,6 +69,14 @@ public class Company {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    public List<FinancialStatementRowEntry> getFinancialStatementRowEntries() {
+        return financialStatementRowEntries;
+    }
+
+    public void setFinancialStatementRowEntries(List<FinancialStatementRowEntry> financialStatementRowEntries) {
+        this.financialStatementRowEntries = financialStatementRowEntries;
     }
 
     public List<Ticker> getTickers() {

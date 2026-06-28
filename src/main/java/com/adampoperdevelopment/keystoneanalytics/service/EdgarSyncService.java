@@ -41,7 +41,7 @@ public class EdgarSyncService {
         this.objectMapper = objectMapper;
     }
 
-    @EventListener(ApplicationReadyEvent.class)
+    // @EventListener(ApplicationReadyEvent.class)
     public void syncCompaniesAndTickers() {
         log.info("Starting EDGAR company/ticker sync...");
 
@@ -181,7 +181,7 @@ public class EdgarSyncService {
 
     private String fetchEdgarTickers() {
         HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.USER_AGENT, "KeystoneAnalytics contact@keystoneanalytics.com");
+        headers.set(HttpHeaders.USER_AGENT, "KeystoneAnalytics adampoper@gmail.com");
         return restTemplate.exchange(
                 COMPANY_TICKERS_URL,
                 HttpMethod.GET,
