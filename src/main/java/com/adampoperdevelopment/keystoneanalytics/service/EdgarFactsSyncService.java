@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -36,8 +37,12 @@ import java.util.stream.Collectors;
 public class EdgarFactsSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(EdgarFactsSyncService.class);
-    private static final int APPLE_CIK = 320193;
-    private static final Pattern FRAME_PATTERN = Pattern.compile("CY(\\d{4})(Q[1-4])?");
+    private static final Pattern FRAME_PATTERN = Pattern.compile("CY(\\d{4})(Q[1-4])?(I)?");
+
+    private static final List<Integer> TRACKED_CIKS = List.of(
+            320193,  // Apple
+            789019   // Microsoft
+    );
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -60,59 +65,66 @@ public class EdgarFactsSyncService {
         this.entryRepository = entryRepository;
     }
 
+    @Order(3)
     @Transactional
     @EventListener(ApplicationReadyEvent.class)
     public void sync() {
-        Company apple = companyRepository.findByCik(APPLE_CIK);
-        if (apple == null) {
-            log.warn("Apple (CIK {}) not found in DB — run EdgarSyncService first.", APPLE_CIK);
+        List<FinancialStatementRow> allRows = rowRepository.findAll();
+        if (allRows.isEmpty()) {
+            log.warn("No financial statement rows found — run FinancialStatementRowSeedService first.");
             return;
         }
 
-        log.info("Fetching company facts for Apple (CIK: {})...", APPLE_CIK);
-        String json = fetchCompanyFacts(APPLE_CIK);
-        if (json == null) return;
+        for (int cik : TRACKED_CIKS) {
+            Company company = companyRepository.findByCik(cik);
+            if (company == null) {
+                log.warn("Company with CIK {} not found in DB — run EdgarSyncService first.", cik);
+                continue;
+            }
 
-        CompanyFactsResponseDto response;
-        try {
-            response = objectMapper.readValue(json, CompanyFactsResponseDto.class);
-        } catch (Exception e) {
-            log.error("Failed to parse company facts response", e);
-            return;
+            log.info("Fetching company facts for {} (CIK: {})...", company.getName(), cik);
+            String json = fetchCompanyFacts(cik);
+            if (json == null) continue;
+
+            CompanyFactsResponseDto response;
+            try {
+                response = objectMapper.readValue(json, CompanyFactsResponseDto.class);
+            } catch (Exception e) {
+                log.error("Failed to parse company facts for CIK {}", cik, e);
+                continue;
+            }
+
+            log.info("Syncing {} terms for {}...", allRows.size(), company.getName());
+            for (FinancialStatementRow row : allRows) {
+                syncTerm(company, row, response);
+            }
         }
-
-        syncTerm(apple, "Revenue", response);
     }
 
-    private void syncTerm(Company company, String rowTitle, CompanyFactsResponseDto response) {
-        FinancialStatementRow row = rowRepository.findByTitle(rowTitle);
-        if (row == null) {
-            log.warn("'{}' row not found — run FinancialStatementRowSeedService first.", rowTitle);
-            return;
-        }
-
+    private void syncTerm(Company company, FinancialStatementRow row, CompanyFactsResponseDto response) {
         if (entryRepository.existsByCompanyAndFinancialStatementRow(company, row)) {
-            log.info("{} entries for {} already exist, skipping.", rowTitle, company.getName());
+            log.info("'{}': entries already exist, skipping.", row.getTitle());
             return;
         }
 
         List<FinancialStatementRowTag> tags = tagRepository.findByFinancialStatementRowOrderByPriorityAsc(row);
         if (tags.isEmpty()) {
-            log.warn("No XBRL tags configured for '{}'", rowTitle);
+            log.warn("No XBRL tags configured for '{}'", row.getTitle());
             return;
         }
 
         // Try each tag in priority order. For any given frame, the first tag that
-        // provides data wins — this naturally covers the pre/post ASC 606 revenue split.
+        // provides data wins — this naturally covers things like the pre/post ASC 606 revenue split.
         Map<String, FactEntryDto> byFrame = new LinkedHashMap<>();
         for (FinancialStatementRowTag tagDef : tags) {
             XbrlTagDto tagData = response.getFacts().getUsGaap().get(tagDef.getTag());
             if (tagData == null) {
-                log.info("  Tag '{}': not present in company facts", tagDef.getTag());
                 continue;
             }
 
+            // Most tags use USD; EPS uses USD/shares
             List<FactEntryDto> entries = tagData.getUnits().get("USD");
+            if (entries == null) entries = tagData.getUnits().get("USD/shares");
             if (entries == null) continue;
 
             int added = 0;
@@ -125,7 +137,7 @@ public class EdgarFactsSyncService {
             log.info("  Tag '{}': {} frames added", tagDef.getTag(), added);
         }
 
-        log.info("{} total framed entries for '{}'", byFrame.size(), rowTitle);
+        log.info("{} total framed entries for '{}'", byFrame.size(), row.getTitle());
 
         deriveMissingFiscalQ4s(byFrame);
 
@@ -147,7 +159,7 @@ public class EdgarFactsSyncService {
 
         entryRepository.saveAll(toSave);
         log.info("Saved {} '{}' entries for {} ({} derived fiscal Q4s)",
-                toSave.size(), rowTitle, company.getName(), countDerived(byFrame));
+                toSave.size(), row.getTitle(), company.getName(), countDerived(byFrame));
     }
 
     private void deriveMissingFiscalQ4s(Map<String, FactEntryDto> byFrame) {

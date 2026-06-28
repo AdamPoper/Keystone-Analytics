@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,7 @@ public class FinancialStatementRowSeedService {
         this.tagRepository = tagRepository;
     }
 
+    @Order(2)
     @Transactional
     @EventListener(ApplicationReadyEvent.class)
     public void seed() {
