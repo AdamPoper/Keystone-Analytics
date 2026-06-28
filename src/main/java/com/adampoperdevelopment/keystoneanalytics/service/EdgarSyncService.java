@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -41,6 +42,7 @@ public class EdgarSyncService {
         this.objectMapper = objectMapper;
     }
 
+    @Order(1)
     // @EventListener(ApplicationReadyEvent.class)
     public void syncCompaniesAndTickers() {
         log.info("Starting EDGAR company/ticker sync...");
